@@ -1,11 +1,3 @@
-%*********************************************************************
-% Non-linear solver (Phase-field equation)
-%
-%*********************************************************************
-%
-%***------------------------------------
-% Manuela Bastidas - 2020
-% Hasselt University, Belgium
 
 function [solution,Indic_periodic,geometry] = ...
     LschemeSolution_phaseField(geometry,prev_it,prev_n,fu,tol)
@@ -33,31 +25,31 @@ residual(1) = inf;
 
 pprev_it = prev_it;
 
-[fprev,x1,x2] = source_Lscheme(pprev_it,fu);
+[fplus,fminus,positions] = source_Lscheme(pprev_it,prev_n,fu);
+
 % fp_prev = fp_aux;
 % F- : FMINUS(Function concave)
 % F+ : FPLUS (Function convex)
-positions = pprev_it>=x1&pprev_it<=x2; %% POSITIVE DERIVATIVE
-
-fplus            = zeros(size(fprev));
-fplus(positions) = fprev(positions);
-fminus           = fprev;
-fminus(positions)= 0;
+% positions = pprev_it>=x1&pprev_it<=x2; %% POSITIVE DERIVATIVE
+% fplus            = zeros(size(fprev));
+% fplus(positions) = fprev(positions);
+% fminus           = fprev;
+% fminus(positions)= 0;
 
 % Scheme implicit in FMINUS
 L_scheme  = 1/2*max(abs(4*lambda*fu+16*gamma_par),abs(4*lambda*fu-16*gamma_par));
-fpminus   = -ones(size(fprev))*L_scheme;
-fpminus(positions) = 0;
+fpminus   = ones(size(fplus))*L_scheme;
+% fpminus(positions) = 0;
 
 alpha = (Time.dt/(lambda^2));
 
-while residual(it)>tol
+while residual(it)>tol && it<20
     
     A = [(lambda.^2*gamma_par)^-1*geometry.B , -geometry.C,      ;
-        alpha*geometry.C', geometry.D*(1+Lstab)-diag(alpha*geometry.D*fpminus)];
+        alpha*geometry.C', geometry.D*(1+Lstab)+diag(alpha*geometry.D*fpminus)];
     b = [zeros(geometry.noedges,1);...
-        geometry.D*(prev_n+alpha*fplus+Lstab*prev_it) + alpha*geometry.D*fminus - geometry.D*(alpha*fpminus.*pprev_it)];
-
+        geometry.D*(prev_n+alpha*fplus+Lstab*prev_it) + alpha*geometry.D*fminus + geometry.D*(alpha*fpminus.*pprev_it)];
+    
     MM   = (Indic_periodic'*A*Indic_periodic);
     b    = (Indic_periodic'*b);
     x_it = MM\b;
@@ -73,15 +65,15 @@ while residual(it)>tol
     residual(it) = norm(sol_tot(geometry.noedges+1:end)- pprev_it);
     pprev_it     = sol_tot(geometry.noedges+1:end);
     
-    [fprev,~,~] = source_Lscheme(pprev_it,fu);
+    [fplus,fminus,positions] = source_Lscheme(pprev_it,prev_n,fu);
     
-    fpminus            = -ones(size(fprev))*L_scheme;
-    positions          = pprev_it>=x1&pprev_it<=x2;
-    fpminus(positions) = 0;
-    fplus              = zeros(size(fprev));
-    fminus             = fprev;
-    fplus(positions)   = fprev(positions);
-    fminus(positions)  = 0;
+    fpminus            = ones(size(fplus))*L_scheme;
+    %     positions          = pprev_it>=x1&pprev_it<=x2;
+%     fpminus(positions) = 0;
+    %     fplus              = zeros(size(fprev));
+    %     fminus             = fprev;
+    %     fplus(positions)   = fprev(positions);
+    %     fminus(positions)  = 0;
 end
 
 solution.residual = residual;
